@@ -26,12 +26,26 @@ pub enum DecodeError {
     Overflow,
 }
 
-impl<const BITS: usize, const LIMBS: usize, Db> ToSql<Binary, Db> for Uint<BITS, LIMBS>
-where
-    for<'c> Db: Backend<BindCollector<'c> = RawBytesBindCollector<Db>>,
-{
+macro_rules! implement_to_sql_for_raw_bytes_bind_collector {
+    ($Db: ident) => {
+        impl<const BITS: usize, const LIMBS: usize, $Db> ToSql<Binary, $Db> for Uint<BITS, LIMBS>
+        where
+            for<'c> $Db: Backend<BindCollector<'c> = RawBytesBindCollector<$Db>>,
+        {
+            fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Db>) -> SerResult {
+                out.write_all(&self.to_be_bytes_vec())?;
+                Ok(IsNull::No)
+            }
+        }
+    };
+}
+
+implement_to_sql_for_raw_bytes_bind_collector!(Pg);
+implement_to_sql_for_raw_bytes_bind_collector!(Mysql);
+
+impl<const BITS: usize, const LIMBS: usize, Sqlite> ToSql<Binary, Sqlite> for Uint<BITS, LIMBS> {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Db>) -> SerResult {
-        out.write_all(&self.to_be_bytes_vec())?;
+        out.set_value(&self.to_be_bytes_vec())?;
         Ok(IsNull::No)
     }
 }
